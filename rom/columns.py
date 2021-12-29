@@ -249,7 +249,7 @@ class Column(object):
         self._attr = None
         self._keygen = None
 
-        if (keygen or keygen2) and not (index or prefix or suffix):
+        if ((keygen or keygen2)) and not index and not prefix and not suffix:
             raise ColumnError("Explicit keygen provided, but no index type spcified (index, prefix, and suffix all False)")
 
         if not self._allowed and not hasattr(self, '_fmodel') and not hasattr(self, '_ftable') and not isinstance(self, IndexOnly):
@@ -257,9 +257,8 @@ class Column(object):
 
         allowed = (self._allowed,) if isinstance(self._allowed, type) else self._allowed
         is_integer = all(issubclass(x, six.integer_types) for x in allowed)
-        if unique:
-            if not (is_string or is_integer):
-                raise ColumnError("Unique columns can only be strings or integers")
+        if unique and not is_string and not is_integer:
+            raise ColumnError("Unique columns can only be strings or integers")
 
         if keygen and keygen2:
             raise ColumnError("Can only specify one of 'keygen' and 'keygen2' arguments at a time, you provided both")
@@ -270,22 +269,24 @@ class Column(object):
             return
 
         numeric = True
-        if index and not isinstance(self, (ManyToOne, OneToOne)):
-            if not is_numeric(allowed):
-                numeric = False
-                if issubclass(bool, allowed):
-                    keygen = keygen or _boolean_keygen
-                if not is_string(allowed) and not keygen:
-                    raise ColumnError("Non-numeric/string indexed columns must provide keygen argument on creation")
+        if (
+            index
+            and not isinstance(self, (ManyToOne, OneToOne))
+            and not is_numeric(allowed)
+        ):
+            numeric = False
+            if issubclass(bool, allowed):
+                keygen = keygen or _boolean_keygen
+            if not is_string(allowed) and not keygen:
+                raise ColumnError("Non-numeric/string indexed columns must provide keygen argument on creation")
 
         if (index or prefix or suffix) and is_string(allowed) and keygen is None:
             raise ColumnError("Indexed string column missing explicit keygen argument, try one of: %s"%STRING_INDEX_KEYGENS_STR)
 
         if index:
-            keygen = keygen if keygen else (
-                _numeric_keygen if numeric else _string_keygen)
+            keygen = keygen or (_numeric_keygen if numeric else _string_keygen)
         elif prefix or suffix:
-            keygen = keygen if keygen else _string_keygen
+            keygen = keygen or _string_keygen
 
         if keygen:
             # old-style keygen needs a wrapper
@@ -720,9 +721,7 @@ class IndexOnly(Column):
         '''
         if column and keygen:
             keygen2 = lambda _,dct: keygen(dct.get(column))
-        elif keygen2:
-            pass
-        else:
+        elif not keygen2:
             raise ValueError("Need both of `column` and `keygen` or just `keygen2` argument")
         Column.__init__(self, index=True, keygen2=keygen2, prefix=prefix, suffix=suffix)
 
@@ -814,8 +813,7 @@ class ManyToOne(Column):
         if value._new:
             # should spew a warning here
             value.save()
-        v = str(getattr(value, value._pkey))
-        return v
+        return str(getattr(value, value._pkey))
     
     def get_related_model(self):
         try:

@@ -159,8 +159,11 @@ class GeneralIndex(object):
                     continue
                 else:
                     temp_id2 = str(uuid.uuid4())
-                    pipe.zunionstore(temp_id2, dict(
-                        ('%s:%s:idx'%(self.namespace, fi), 0) for fi in fltr))
+                    pipe.zunionstore(
+                        temp_id2,
+                        {'%s:%s:idx' % (self.namespace, fi): 0 for fi in fltr},
+                    )
+
                     intersect(temp_id, {temp_id: 0, temp_id2: 0})
                     pipe.delete(temp_id2)
             if isinstance(fltr, six.string_types):

@@ -551,23 +551,18 @@ class Query(object):
             data_gen = iter(_select_generator(None, self._model, *self._select))
             next(data_gen) # prime the generator
 
-        i = 1
-        if start:
-            # skip over the offset at the beginning
-            i = int((conn.zrange(index, start, start) or (0,))[0])
-
+        i = int((conn.zrange(index, start, start) or (0,))[0]) if start else 1
         while i <= max_id and remaining > 0:
             ids = conn.zrangebyscore(index, i, i+99)
             i += 100
             if cols:
                 _ids = json.dumps(list(map(int, ids)))
                 for data in _json_loads(_get_column_data(conn, [ns], [_ids, dcols])):
-                    if remaining > 0:
-                        remaining -= 1
-                        yield data_gen.send(data)
-                    else:
+                    if remaining <= 0:
                         break
 
+                    remaining -= 1
+                    yield data_gen.send(data)
             else:
                 isk = set(session.known.keys())
                 for ent in self._model.get(ids):
