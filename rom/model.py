@@ -67,10 +67,8 @@ class _ModelMetaclass(type):
         # load all columns from any base classes to allow for validation
         odict = {}
         for ocls in reversed(bases):
-            if hasattr(ocls, '_columns'):
-                # __init -> _ModelMetaclass__init, which is used later
-                if __init and ocls is not Model:
-                    odict.update(ocls._columns)
+            if hasattr(ocls, '_columns') and __init and ocls is not Model:
+                odict.update(ocls._columns)
 
         odict.update(dict)
         dict = odict
@@ -110,10 +108,12 @@ class _ModelMetaclass(type):
                 # Check to make sure that the foreign ManyToOne/OneToMany table
                 # doesn't have multiple references to this table to require an
                 # explicit foreign column.
-                refs = []
-                for _a, _c in MODELS[col._ftable]._columns.items():
-                    if isinstance(_c, (ManyToOne, OneToOne)) and _c._ftable == name:
-                        refs.append(_a)
+                refs = [
+                    _a
+                    for _a, _c in MODELS[col._ftable]._columns.items()
+                    if isinstance(_c, (ManyToOne, OneToOne)) and _c._ftable == name
+                ]
+
                 if len(refs) > 1:
                     raise ColumnError("Missing required column argument to OneToMany definition on column %s"%(attr,))
 
@@ -311,7 +311,7 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
         conn = _connect(self)
         data = conn.hgetall(self._pk)
         if six.PY3 and _conn_needs_decoding(conn):
-            data = dict((k.decode(), v.decode()) for k, v in data.items())
+            data = {k.decode(): v.decode() for k, v in data.items()}
         self.__init__(_loading=True, **data)
 
     @property
@@ -341,10 +341,7 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
 
         # update individual columns
         for attr in cls._columns:
-            ikey = None
-            if attr in cls._unique:
-                ikey = "%s:%s:uidx"%(model, attr)
-
+            ikey = "%s:%s:uidx"%(model, attr) if attr in cls._unique else None
             ca = columns[attr]
             roval = None if is_new else old.get(attr)
             oval = ca._from_redis(roval) if roval is not None else None
@@ -571,7 +568,7 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
             for i, data in zip(idxs, pipe.execute()):
                 if data:
                     if six.PY3 and _conn_needs_decoding(conn):
-                        data = dict((k.decode(), v.decode()) for k, v in data.items())
+                        data = {k.decode(): v.decode() for k, v in data.items()}
                     out[i] = cls(_loading=True, **data)
             # Get rid of missing models
             out = [x for x in out if x]
@@ -616,10 +613,11 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
         model = cls._namespace
         # handle limits and query requirements
         _limit = kwargs.pop('_limit', ())
-        if _limit and len(_limit) != 2:
-            raise QueryError("Limit must include both 'offset' and 'count' parameters")
-        elif _limit and not all(isinstance(x, six.integer_types) for x in _limit):
-            raise QueryError("Limit arguments must both be integers")
+        if _limit:
+            if len(_limit) != 2:
+                raise QueryError("Limit must include both 'offset' and 'count' parameters")
+            elif not all(isinstance(x, six.integer_types) for x in _limit):
+                raise QueryError("Limit arguments must both be integers")
         if len(kwargs) != 1:
             raise QueryError("We can only fetch object(s) by exactly one attribute, you provided %s"%(len(kwargs),))
 
@@ -727,10 +725,7 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
         idx = cls._namespace + ":" + attr + ":suf"
         val = []
         for v in values:
-            if isinstance(v, six.string_types):
-                v = v[::-1].encode("utf-8")
-            else:
-                v = v[::-1]
+            v = v[::-1].encode("utf-8") if isinstance(v, six.string_types) else v[::-1]
             val.append(v)
 
         return cls._iter_ex(idx, val, blocksize)
@@ -752,7 +747,7 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
             exc = excludes.pop()
             # things that are between the matched items
             for chunk in _zrange_limit_iterator(c, idx, last, "(" + exc, blocksize):
-                ids = set(int(p.rpartition(b"\0")[-1]) for p in chunk)
+                ids = {int(p.rpartition(b"\0")[-1]) for p in chunk}
                 if ids:
                     found = cls.get(list(ids))
                     if found:
@@ -855,7 +850,7 @@ class Model(six.with_metaclass(_ModelMetaclass, object)):
         c1 = self._connection
         c2 = other._connection
         c3 = txn_model._connection
-        if not (c1 is c2 and c2 is c3):
+        if c1 is not c2 or c2 is not c3:
             raise ValueError("All entities must share a Redis connection")
         check = lambda x: x._modified or x._new or x._deleted
         if check(self) or check(other) or check(txn_model):

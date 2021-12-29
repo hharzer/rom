@@ -266,7 +266,14 @@ def FULL_TEXT(val):
             val = val.decode('latin-1')
         else:
             val = str(val)
-    r = sorted(set([x for x in [s.lower().strip(string.punctuation) for s in val.split()] if x]))
+    r = sorted(
+        {
+            x
+            for x in [s.lower().strip(string.punctuation) for s in val.split()]
+            if x
+        }
+    )
+
     if not isinstance(val, str):  # unicode on py2k
         return [s.encode('utf-8') for s in r]
     return r
@@ -348,9 +355,8 @@ def _many_to_one_keygen(val):
 
 def _to_score(v, s=False):
     v = repr(v) if isinstance(v, float) else str(v)
-    if s:
-        if v[:1] != '(':
-            return '(' + v
+    if s and v[:1] != '(':
+        return '(' + v
     return v.lstrip('(')
 
 # borrowed and modified from:
@@ -379,10 +385,7 @@ def _prefix_score(v, next=False):
 _epoch = datetime(1970, 1, 1)
 _epochd = _epoch.date()
 def dt2ts(value):
-    if isinstance(value, datetime):
-        delta = value - _epoch
-    else:
-        delta = value - _epochd
+    delta = value - _epoch if isinstance(value, datetime) else value - _epochd
     return delta.days * 86400 + delta.seconds + delta.microseconds / 1000000.
 
 def ts2dt(value):

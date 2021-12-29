@@ -376,6 +376,7 @@ class TestORM(unittest.TestCase):
             RomTestBar._conn.delete(*k)
 
     def test_entity_caching(self):
+
         class RomTestGoo(Model):
             pass
 
@@ -383,7 +384,7 @@ class TestORM(unittest.TestCase):
         i = f.id
         session.commit()
 
-        for j in range(10):
+        for _ in range(10):
             RomTestGoo()
 
         g = RomTestGoo.get(i)
@@ -408,6 +409,7 @@ class TestORM(unittest.TestCase):
         self.assertEqual(len(RomTestM.get_by(i=(10, 12))), 1)
 
     def test_json_multisave(self):
+
         class RomTestJsonTest(Model):
             col = Json()
 
@@ -415,7 +417,7 @@ class TestORM(unittest.TestCase):
         x = RomTestJsonTest(col=d)
         x.save()
         del x
-        for i in range(5):
+        for _ in range(5):
             x = RomTestJsonTest.get(1)
             self.assertEqual(x.col, d)
             x.save(full=True)
@@ -1593,13 +1595,14 @@ class TestORM(unittest.TestCase):
         self.assertEqual(a.query.filter(tags='park').near('basic', 0, 50, 60, 'km').count(), 0)
 
     def test_filter_delete(self):
+
         class RomTestFilterPerformance(Model):
             id = PrimaryKey(index=True)
 
         TEST_PERF = 0
 
         ids = []
-        for i in range(10000 if TEST_PERF else 100):
+        for _ in range(10000 if TEST_PERF else 100):
             a = RomTestFilterPerformance()
             a.save()
             ids.append(a.id)
@@ -1607,7 +1610,7 @@ class TestORM(unittest.TestCase):
 
         if TEST_PERF:
             t = time.time()
-            for i in range(100):
+            for _ in range(100):
                 RomTestFilterPerformance.query.filter(id=(1, 1)).cached_result(30)
             ela = time.time()-t
             print("\nelapsed: ", ela)
